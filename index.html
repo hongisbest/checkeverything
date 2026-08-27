@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>법인차량 홍보스티커 점검</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="container">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">VEHICLE STICKER CHECK</p>
+        <h1>법인차량 홍보스티커 셀프점검</h1>
+        <p class="sub">
+          정상 기준사진과 현재 차량사진을 비교해 주세요.
+        </p>
+      </div>
+      <div class="status-badge">TEST VERSION</div>
+    </section>
+
+    <section class="photo-grid">
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <span class="step">STEP 01</span>
+            <h2>정상 기준사진</h2>
+          </div>
+        </div>
+
+        <div class="photo-box" id="referenceBox">
+          <div class="placeholder">
+            <strong>기준사진을 선택하세요</strong>
+            <span>JPG, PNG 등 이미지 파일</span>
+          </div>
+        </div>
+
+        <label class="file-button">
+          기준사진 선택
+          <input
+            id="referenceInput"
+            type="file"
+            accept="image/*"
+          >
+        </label>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <div>
+            <span class="step">STEP 02</span>
+            <h2>현재 차량사진</h2>
+          </div>
+        </div>
+
+        <div class="photo-box" id="checkBox">
+          <div class="placeholder">
+            <strong>점검사진을 선택하세요</strong>
+            <span>모바일에서는 카메라 촬영 가능</span>
+          </div>
+        </div>
+
+        <label class="file-button primary">
+          차량사진 촬영 / 선택
+          <input
+            id="checkInput"
+            type="file"
+            accept="image/*"
+            capture="environment"
+          >
+        </label>
+      </article>
+    </section>
+
+    <section class="comparison-panel">
+      <div>
+        <span class="section-label">TEST CHECK</span>
+        <h3>현재 테스트 항목</h3>
+      </div>
+
+      <div class="check-list">
+        <div class="check-item">
+          <span class="dot"></span>
+          PC에서 사진 선택 가능
+        </div>
+        <div class="check-item">
+          <span class="dot"></span>
+          모바일에서 사진 촬영 / 선택 가능
+        </div>
+        <div class="check-item">
+          <span class="dot"></span>
+          두 사진이 정상적으로 화면에 표시
+        </div>
+      </div>
+    </section>
+
+    <section class="notice">
+      <strong>현재 단계에서는 사진이 서버에 저장되지 않습니다.</strong>
+      <p>
+        선택한 이미지는 사용자 브라우저 안에서만 표시됩니다.
+        다음 단계에서 기준사진 오버레이와 이미지 비교 기능을 추가합니다.
+      </p>
+    </section>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

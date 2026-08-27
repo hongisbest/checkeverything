@@ -1,0 +1,267 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --text: #1d2329;
+  --muted: #69727d;
+  --line: #d9dee5;
+  --dark: #20262d;
+  --soft: #eef1f4;
+  --shadow: 0 10px 30px rgba(20, 29, 38, 0.07);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Arial, "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+}
+
+button,
+input,
+label {
+  font: inherit;
+}
+
+.container {
+  width: min(1100px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 42px 0 60px;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.eyebrow,
+.section-label,
+.step {
+  display: inline-block;
+  margin-bottom: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 10px;
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+}
+
+.sub {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.status-badge {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.card,
+.comparison-panel,
+.notice {
+  background: var(--surface);
+  border: 1px solid rgba(217, 222, 229, 0.75);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+}
+
+.card {
+  padding: 22px;
+}
+
+.card-head {
+  margin-bottom: 16px;
+}
+
+.card h2 {
+  margin-bottom: 0;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+.photo-box {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-bottom: 14px;
+  border: 1px dashed #b9c0c8;
+  border-radius: 14px;
+  background:
+    linear-gradient(45deg, #f8f9fb 25%, transparent 25%),
+    linear-gradient(-45deg, #f8f9fb 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f8f9fb 75%),
+    linear-gradient(-45deg, transparent 75%, #f8f9fb 75%);
+  background-size: 22px 22px;
+  background-position: 0 0, 0 11px, 11px -11px, -11px 0;
+}
+
+.photo-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.placeholder strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.placeholder span {
+  font-size: 12px;
+}
+
+.file-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.file-button:hover {
+  background: var(--soft);
+}
+
+.file-button.primary {
+  border-color: var(--dark);
+  background: var(--dark);
+  color: #fff;
+}
+
+.file-button.primary:hover {
+  opacity: 0.92;
+}
+
+.file-button input {
+  display: none;
+}
+
+.comparison-panel {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 20px;
+  padding: 22px;
+}
+
+.comparison-panel h3 {
+  margin-bottom: 0;
+  font-size: 18px;
+}
+
+.check-list {
+  display: grid;
+  gap: 10px;
+  min-width: 300px;
+}
+
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #424a53;
+  font-size: 14px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #4f5964;
+}
+
+.notice {
+  margin-top: 20px;
+  padding: 20px 22px;
+}
+
+.notice strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.notice p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+@media (max-width: 760px) {
+  .container {
+    width: min(100% - 24px, 1100px);
+    padding-top: 24px;
+  }
+
+  .hero {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .photo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .comparison-panel {
+    flex-direction: column;
+  }
+
+  .check-list {
+    min-width: 0;
+  }
+}
