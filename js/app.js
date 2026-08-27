@@ -8,8 +8,15 @@ const cameraStatus = document.getElementById("cameraStatus");
 const cameraMessage = document.getElementById("cameraMessage");
 
 const startCameraBtn = document.getElementById("startCameraBtn");
-const switchCameraBtn = document.getElementById("switchCameraBtn");
+const frontCameraBtn = document.getElementById("frontCameraBtn");
+const backCameraBtn = document.getElementById("backCameraBtn");
 const captureBtn = document.getElementById("captureBtn");
+
+const cameraCount = document.getElementById("cameraCount");
+const cameraName = document.getElementById("cameraName");
+const facingModeText = document.getElementById("facingModeText");
+const resolutionText = document.getElementById("resolutionText");
+const streamState = document.getElementById("streamState");
 
 const opacitySlider = document.getElementById("opacitySlider");
 const opacityValue = document.getElementById("opacityValue");
@@ -18,12 +25,14 @@ const captureCanvas = document.getElementById("captureCanvas");
 const capturePreview = document.getElementById("capturePreview");
 
 let mediaStream = null;
-let facingMode = "environment";
+let videoDevices = [];
+let currentFacing = "environment";
 let referenceDataUrl = null;
 
 referenceInput.addEventListener("change", handleReferenceImage);
-startCameraBtn.addEventListener("click", startCamera);
-switchCameraBtn.addEventListener("click", switchCamera);
+startCameraBtn.addEventListener("click", initialStart);
+frontCameraBtn.addEventListener("click", () => openPreferredCamera("user"));
+backCameraBtn.addEventListener("click", () => openPreferredCamera("environment"));
 captureBtn.addEventListener("click", capturePhoto);
 
 opacitySlider.addEventListener("input", () => {
@@ -45,54 +54,101 @@ function handleReferenceImage(event) {
   }
 
   const reader = new FileReader();
-
-  reader.onload = (loadEvent) => {
-    referenceDataUrl = loadEvent.target.result;
+  reader.onload = (e) => {
+    referenceDataUrl = e.target.result;
 
     referencePreview.innerHTML = "";
-    const preview = document.createElement("img");
-    preview.src = referenceDataUrl;
-    preview.alt = "정상 기준사진";
-    referencePreview.appendChild(preview);
+    const img = document.createElement("img");
+    img.src = referenceDataUrl;
+    img.alt = "정상 기준사진";
+    referencePreview.appendChild(img);
 
     overlayImage.src = referenceDataUrl;
     overlayImage.style.display = "block";
   };
-
   reader.readAsDataURL(file);
 }
 
-async function startCamera() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showMessage(
-      "이 브라우저에서는 웹 카메라 기능을 지원하지 않습니다. 최신 Chrome, Safari 또는 Edge에서 다시 접속해 주세요.",
-      "error"
-    );
+async function initialStart() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showMessage("이 브라우저는 웹 카메라 기능을 지원하지 않습니다.", "error");
     return;
   }
 
   if (!window.isSecureContext) {
-    showMessage(
-      "카메라 접근은 HTTPS 보안 연결에서만 가능합니다. Cloudflare의 https:// 주소로 접속해 주세요.",
-      "error"
-    );
+    showMessage("카메라는 HTTPS 환경에서만 사용할 수 있습니다.", "error");
     return;
   }
 
+  // iOS/Safari는 권한 전에는 enumerateDevices의 label이 비어 있는 경우가 많음.
+  // 먼저 후면 선호로 권한/스트림을 확보한 뒤 장치 목록을 다시 조회한다.
+  await openPreferredCamera("environment", true);
+}
+
+async function refreshDevices() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    videoDevices = devices.filter((d) => d.kind === "videoinput");
+    cameraCount.textContent = `${videoDevices.length}개`;
+    frontCameraBtn.disabled = videoDevices.length < 1;
+    backCameraBtn.disabled = videoDevices.length < 1;
+  } catch (err) {
+    console.error(err);
+    cameraCount.textContent = "확인 실패";
+  }
+}
+
+async function openPreferredCamera(facing, firstRun = false) {
+  currentFacing = facing;
   stopCamera();
 
-  const constraints = {
-    audio: false,
-    video: {
-      facingMode: { ideal: facingMode },
-      width: { ideal: 1920 },
-      height: { ideal: 1080 }
-    }
-  };
+  setDiagLoading(facing);
+
+  // 1차: facingMode exact로 요청
+  let stream = null;
+  let firstError = null;
 
   try {
-    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { exact: facing },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    });
+  } catch (err) {
+    firstError = err;
+  }
+
+  // 2차: exact 실패 시 ideal로 fallback
+  if (!stream) {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: facing },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      });
+    } catch (err) {
+      return handleCameraError(err || firstError);
+    }
+  }
+
+  mediaStream = stream;
+
+  try {
     cameraVideo.srcObject = mediaStream;
+
+    await new Promise((resolve) => {
+      if (cameraVideo.readyState >= 1) {
+        resolve();
+        return;
+      }
+      cameraVideo.onloadedmetadata = () => resolve();
+    });
 
     await cameraVideo.play();
 
@@ -100,38 +156,79 @@ async function startCamera() {
     cameraPlaceholder.style.display = "none";
 
     captureBtn.disabled = false;
-    switchCameraBtn.disabled = false;
-
-    cameraStatus.textContent = facingMode === "environment" ? "후면 카메라" : "전면 카메라";
+    frontCameraBtn.disabled = false;
+    backCameraBtn.disabled = false;
     startCameraBtn.textContent = "카메라 다시 시작";
 
+    await refreshDevices();
+    updateDiagnostics();
+
     showMessage(
-      "카메라가 연결되었습니다. 차량을 기준사진에 맞춘 뒤 촬영하세요.",
+      `${facing === "environment" ? "후면" : "전면"} 카메라 요청이 완료되었습니다. 아래 '현재 카메라'와 Facing Mode를 확인해 주세요.`,
       "success"
     );
-  } catch (error) {
-    console.error(error);
 
-    let message = "카메라를 시작하지 못했습니다.";
+    // iOS에서 첫 권한 이후 장치 label이 채워질 수 있으므로 진단 갱신
+    setTimeout(async () => {
+      await refreshDevices();
+      updateDiagnostics();
+    }, 500);
 
-    if (error.name === "NotAllowedError") {
-      message = "카메라 권한이 차단되어 있습니다. 브라우저 사이트 설정에서 카메라 권한을 허용한 뒤 다시 시도해 주세요.";
-    } else if (error.name === "NotFoundError") {
-      message = "사용 가능한 카메라를 찾지 못했습니다.";
-    } else if (error.name === "NotReadableError") {
-      message = "다른 앱이 카메라를 사용 중이거나 기기에서 카메라 접근을 막고 있습니다. 카메라 앱을 종료한 뒤 다시 시도해 주세요.";
-    } else if (error.name === "OverconstrainedError") {
-      message = "현재 기기에서 요청한 카메라 조건을 사용할 수 없습니다. 다른 카메라로 다시 시도해 주세요.";
-    }
-
-    showMessage(message, "error");
-    cameraStatus.textContent = "연결 실패";
+  } catch (err) {
+    console.error(err);
+    handleCameraError(err);
   }
 }
 
-async function switchCamera() {
-  facingMode = facingMode === "environment" ? "user" : "environment";
-  await startCamera();
+function updateDiagnostics() {
+  if (!mediaStream) return;
+
+  const track = mediaStream.getVideoTracks()[0];
+  const settings = track?.getSettings ? track.getSettings() : {};
+  const label = track?.label || "이름 확인 불가";
+
+  cameraName.textContent = label;
+  facingModeText.textContent = settings.facingMode || currentFacing || "-";
+  resolutionText.textContent =
+    settings.width && settings.height ? `${settings.width} × ${settings.height}` : "-";
+  streamState.textContent = track?.readyState === "live" ? "LIVE" : (track?.readyState || "-");
+  cameraStatus.textContent = track?.readyState === "live" ? "LIVE" : "연결됨";
+}
+
+function setDiagLoading(facing) {
+  cameraName.textContent = "연결 중";
+  facingModeText.textContent = facing;
+  resolutionText.textContent = "-";
+  streamState.textContent = "STARTING";
+  cameraStatus.textContent = "연결 중";
+}
+
+function stopCamera() {
+  if (mediaStream) {
+    mediaStream.getTracks().forEach((track) => track.stop());
+    mediaStream = null;
+  }
+  cameraVideo.srcObject = null;
+}
+
+function handleCameraError(error) {
+  console.error(error);
+
+  let message = `카메라를 시작하지 못했습니다. (${error?.name || "UnknownError"})`;
+
+  if (error?.name === "NotAllowedError") {
+    message = "카메라 권한이 차단되어 있습니다. 사이트 카메라 권한을 허용한 뒤 다시 시도해 주세요.";
+  } else if (error?.name === "NotFoundError") {
+    message = "사용 가능한 카메라를 찾지 못했습니다.";
+  } else if (error?.name === "NotReadableError") {
+    message = "카메라를 읽을 수 없습니다. 다른 앱이 카메라를 사용 중인지 확인해 주세요.";
+  } else if (error?.name === "OverconstrainedError") {
+    message = "해당 전면/후면 카메라 조건을 사용할 수 없습니다.";
+  }
+
+  streamState.textContent = "ERROR";
+  cameraStatus.textContent = "실패";
+  showMessage(message, "error");
 }
 
 function capturePhoto() {
@@ -140,55 +237,30 @@ function capturePhoto() {
     return;
   }
 
-  const sourceWidth = cameraVideo.videoWidth;
-  const sourceHeight = cameraVideo.videoHeight;
+  const width = cameraVideo.videoWidth;
+  const height = cameraVideo.videoHeight;
 
-  if (!sourceWidth || !sourceHeight) {
+  if (!width || !height) {
     showMessage("카메라 해상도를 확인할 수 없습니다.", "error");
     return;
   }
 
-  captureCanvas.width = sourceWidth;
-  captureCanvas.height = sourceHeight;
+  captureCanvas.width = width;
+  captureCanvas.height = height;
 
   const ctx = captureCanvas.getContext("2d");
-
-  if (facingMode === "user") {
-    ctx.save();
-    ctx.translate(sourceWidth, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(cameraVideo, 0, 0, sourceWidth, sourceHeight);
-    ctx.restore();
-  } else {
-    ctx.drawImage(cameraVideo, 0, 0, sourceWidth, sourceHeight);
-  }
+  ctx.drawImage(cameraVideo, 0, 0, width, height);
 
   const imageUrl = captureCanvas.toDataURL("image/jpeg", 0.9);
 
   capturePreview.innerHTML = "";
-  const resultImage = document.createElement("img");
-  resultImage.src = imageUrl;
-  resultImage.alt = "촬영한 차량사진";
-  capturePreview.appendChild(resultImage);
+  const img = document.createElement("img");
+  img.src = imageUrl;
+  img.alt = "촬영한 차량사진";
+  capturePreview.appendChild(img);
 
-  capturePreview.scrollIntoView({
-    behavior: "smooth",
-    block: "center"
-  });
-
-  showMessage(
-    "촬영이 완료되었습니다. 아래 기준사진과 촬영사진을 비교해 주세요.",
-    "success"
-  );
-}
-
-function stopCamera() {
-  if (mediaStream) {
-    mediaStream.getTracks().forEach((track) => track.stop());
-    mediaStream = null;
-  }
-
-  cameraVideo.srcObject = null;
+  capturePreview.scrollIntoView({ behavior: "smooth", block: "center" });
+  showMessage("촬영이 완료되었습니다.", "success");
 }
 
 function showMessage(text, type) {
