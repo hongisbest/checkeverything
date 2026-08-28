@@ -1,57 +1,109 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>법인차량 홍보스티커 셀프점검</title>
-<link rel="stylesheet" href="/css/app.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <title>법인차량 홍보스티커 셀프점검</title>
+  <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<main class="container">
-  <section class="hero">
-    <div>
-      <p class="eyebrow">VEHICLE STICKER CHECK · V7</p>
-      <h1>법인차량 홍보스티커 셀프점검</h1>
-      <p class="sub">관리자가 지정한 기준사진과 검사영역을 확인하세요.</p>
-    </div>
-  </section>
-
-  <section class="card">
-    <span class="step">STEP 01</span>
-    <h2>정상 기준사진</h2>
-    <div id="referencePreview" class="reference-box">
-      <div class="placeholder"><strong>기준사진을 불러오는 중</strong></div>
-    </div>
-    <p id="referenceTitle" class="help"></p>
-  </section>
-
-  <section class="card">
-    <span class="step">STEP 02</span>
-    <h2>차량사진 촬영</h2>
-    <div class="camera-stage">
-      <video id="cameraVideo" autoplay playsinline muted></video>
-      <img id="overlayImage" class="overlay-image">
-      <div id="cameraPlaceholder" class="camera-placeholder">
-        <strong>카메라를 시작해 주세요.</strong>
+  <main class="container">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">VEHICLE STICKER CHECK</p>
+        <h1>법인차량 홍보스티커 셀프점검</h1>
+        <p class="sub">관리자가 제공한 정상 기준사진에 차량을 맞춰 촬영해 주세요.</p>
       </div>
-    </div>
-    <div class="controls">
-      <button id="startCameraBtn" class="btn primary">카메라 시작</button>
-      <button id="captureBtn" class="btn accent" disabled>촬영하기</button>
-    </div>
-    <div id="cameraMessage" class="message info">다음 단계에서 이 검사영역을 실제 비교에 사용합니다.</div>
-  </section>
+      <span class="status-badge">USER</span>
+    </section>
 
-  <section class="card">
-    <span class="step">CAPTURED</span>
-    <h2>촬영결과</h2>
-    <div id="capturePreview" class="reference-box">
-      <div class="placeholder"><strong>촬영사진 없음</strong></div>
-    </div>
-  </section>
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <span class="step">STEP 01</span>
+          <h2>정상 기준사진 확인</h2>
+        </div>
+        <span id="referenceStatus" class="mini-status">불러오는 중</span>
+      </div>
 
-  <canvas id="captureCanvas" hidden></canvas>
-</main>
-<script src="/js/check.js"></script>
+      <div class="reference-box" id="referencePreview">
+        <div class="placeholder">
+          <strong>기준사진을 불러오고 있습니다.</strong>
+          <span>관리자가 활성화한 사진이 자동으로 표시됩니다.</span>
+        </div>
+      </div>
+      <p id="referenceTitle" class="help"></p>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <span class="step">STEP 02</span>
+          <h2>차량사진 촬영</h2>
+        </div>
+        <span id="cameraStatus" class="mini-status">대기</span>
+      </div>
+
+      <div class="camera-stage">
+        <div id="cameraViewport" class="camera-viewport">
+          <video id="cameraVideo" autoplay playsinline muted></video>
+          <img id="overlayImage" class="overlay-image" alt="정상 기준사진 오버레이">
+        </div>
+
+        <div id="cameraPlaceholder" class="camera-placeholder">
+          <strong>카메라를 시작해 주세요.</strong>
+          <span>기준사진과 차량 윤곽을 최대한 맞춰주세요.</span>
+        </div>
+
+        <div class="guide-frame">
+          <span class="corner tl"></span><span class="corner tr"></span>
+          <span class="corner bl"></span><span class="corner br"></span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="startCameraBtn" class="btn primary" type="button">카메라 시작</button>
+        <button id="captureBtn" class="btn accent" type="button" disabled>촬영하기</button>
+      </div>
+
+      <div class="control-panel">
+        <div class="slider-wrap">
+          <div class="slider-label">
+            <span>카메라 화면 배율</span>
+            <strong id="zoomValue">1.00×</strong>
+          </div>
+          <input id="zoomSlider" type="range" min="0.80" max="1.50" value="1.00" step="0.05">
+        </div>
+
+        <div class="slider-wrap">
+          <div class="slider-label">
+            <span>기준사진 투명도</span>
+            <strong id="opacityValue">35%</strong>
+          </div>
+          <input id="opacitySlider" type="range" min="0" max="80" value="35" step="5">
+        </div>
+      </div>
+
+      <div id="cameraMessage" class="message info">
+        촬영 전 기준사진이 표시되는지 먼저 확인해 주세요.
+      </div>
+    </section>
+
+    <section class="card">
+      <span class="step">CAPTURED</span>
+      <h2>촬영결과</h2>
+      <div class="reference-box" id="capturePreview">
+        <div class="placeholder">
+          <strong>촬영사진 없음</strong>
+          <span>촬영한 사진이 여기에 표시됩니다.</span>
+        </div>
+      </div>
+    </section>
+
+    <canvas id="captureCanvas" hidden></canvas>
+  </main>
+
+  <script src="/js/check.js"></script>
 </body>
 </html>
