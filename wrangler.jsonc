@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vehicle-sticker-check",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-28",
+
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vehicle-sticker-db",
+      "database_id": "여기에_D1_DATABASE_ID_입력"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "REFERENCE_BUCKET",
+      "bucket_name": "vehicle-sticker-reference"
+    }
+  ]
+}
