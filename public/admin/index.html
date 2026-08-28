@@ -1,84 +1,85 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>차량 스티커 점검 관리자</title>
-  <link rel="stylesheet" href="/css/app.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>관리자 - 검사영역 설정</title>
+<link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-  <main class="container admin-container">
-    <section class="hero">
-      <div>
-        <p class="eyebrow">VEHICLE STICKER CHECK</p>
-        <h1>관리자 설정</h1>
-        <p class="sub">정상 기준사진을 등록하고 직원에게 제공할 활성사진을 지정합니다.</p>
-      </div>
-      <span class="status-badge">ADMIN</span>
-    </section>
-
-    <section id="loginPanel" class="card auth-card">
-      <span class="step">ADMIN LOGIN</span>
-      <h2>관리자 로그인</h2>
-      <div class="form-group">
-        <label for="password">관리자 비밀번호</label>
-        <input id="password" type="password" autocomplete="current-password" placeholder="비밀번호 입력">
-      </div>
-      <button id="loginBtn" class="btn primary full" type="button">로그인</button>
-      <div id="loginMessage" class="message info">Cloudflare Secret에 설정한 비밀번호를 입력합니다.</div>
-    </section>
-
-    <div id="adminPanel" hidden>
-      <section class="card">
-        <div class="section-head">
-          <div>
-            <span class="step">REFERENCE SETTING</span>
-            <h2>기준사진 등록</h2>
-          </div>
-          <button id="logoutBtn" class="btn small" type="button">로그아웃</button>
-        </div>
-
-        <div class="admin-form-grid">
-          <div class="form-group">
-            <label for="title">기준사진명</label>
-            <input id="title" type="text" placeholder="예: 아반떼 운전석 측면 정상사진">
-          </div>
-
-          <div class="form-group">
-            <label for="viewType">촬영방향</label>
-            <select id="viewType">
-              <option value="driver_side">운전석 측면</option>
-              <option value="passenger_side">조수석 측면</option>
-              <option value="rear">후면</option>
-              <option value="front">전면</option>
-            </select>
-          </div>
-
-          <div class="form-group full-grid">
-            <label for="file">정상 기준사진</label>
-            <input id="file" type="file" accept="image/*">
-          </div>
-        </div>
-
-        <button id="uploadBtn" class="btn primary" type="button">기준사진 등록</button>
-        <div id="uploadMessage" class="message info">첫 번째로 등록한 사진은 자동으로 활성화됩니다.</div>
-      </section>
-
-      <section class="card">
-        <div class="section-head">
-          <div>
-            <span class="step">REFERENCE LIST</span>
-            <h2>등록된 기준사진</h2>
-          </div>
-          <button id="refreshBtn" class="btn small" type="button">새로고침</button>
-        </div>
-        <div id="referenceList" class="admin-list">
-          <div class="placeholder"><strong>목록을 불러오는 중입니다.</strong></div>
-        </div>
-      </section>
+<main class="container">
+  <section class="hero">
+    <div>
+      <p class="eyebrow">VEHICLE STICKER CHECK · V7</p>
+      <h1>관리자 검사영역 설정</h1>
+      <p class="sub">기준사진 위에서 스티커 영역을 드래그해 지정합니다.</p>
     </div>
-  </main>
+  </section>
 
-  <script src="/js/admin.js"></script>
+  <section id="loginPanel" class="card auth-card">
+    <h2>관리자 로그인</h2>
+    <div class="form-group">
+      <label>비밀번호</label>
+      <input id="password" type="password">
+    </div>
+    <button id="loginBtn" class="btn primary full">로그인</button>
+    <div id="loginMessage" class="message info">관리자 비밀번호를 입력하세요.</div>
+  </section>
+
+  <div id="adminPanel" hidden>
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <span class="step">STEP 01</span>
+          <h2>기준사진 선택</h2>
+        </div>
+        <button id="logoutBtn" class="btn small">로그아웃</button>
+      </div>
+      <div id="referenceList" class="admin-list"></div>
+    </section>
+
+    <section id="roiSection" class="card" hidden>
+      <div class="section-head">
+        <div>
+          <span class="step">STEP 02</span>
+          <h2>검사영역 지정</h2>
+        </div>
+      </div>
+
+      <p class="help">사진 위에서 스티커 부분을 마우스 또는 터치로 드래그하세요.</p>
+
+      <div class="roi-layout">
+        <div id="roiWrap" class="roi-wrap">
+          <img id="roiImage" alt="">
+          <div id="savedLayer"></div>
+          <div id="draftBox" class="roi-box draft" hidden></div>
+        </div>
+
+        <div class="roi-side">
+          <div class="form-group">
+            <label>영역 이름</label>
+            <input id="roiLabel" value="스티커 영역">
+          </div>
+
+          <div class="coords">
+            <div><span>X</span><strong id="xVal">-</strong></div>
+            <div><span>Y</span><strong id="yVal">-</strong></div>
+            <div><span>W</span><strong id="wVal">-</strong></div>
+            <div><span>H</span><strong id="hVal">-</strong></div>
+          </div>
+
+          <button id="saveBtn" class="btn primary full" disabled>현재 영역 저장</button>
+          <button id="resetBtn" class="btn full">다시 그리기</button>
+
+          <div id="roiMessage" class="message info">영역을 드래그해 주세요.</div>
+
+          <h3>저장된 검사영역</h3>
+          <div id="regionList" class="region-list"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+<script src="/js/admin.js"></script>
 </body>
 </html>
