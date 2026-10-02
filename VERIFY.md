@@ -31,3 +31,12 @@
 - DB/Worker/R2 수정 없음: PASS
 - 점검 썸네일 → 확대 모달 연결: PASS
 - X / 배경 / ESC 닫기 동작 연결: PASS
+
+
+## V3 중앙 확대 모달 수정
+- V2 CSS에 들어간 literal `\n` 문자 제거
+- 확대 레이어를 viewport 기준 `position: fixed; inset: 0`으로 강제
+- flex `align-items:center / justify-content:center`로 화면 정중앙 배치
+- 이미지 최대 크기 92vw × 82dvh로 제한
+- 우측 상단 X / 배경 클릭 / ESC 닫기 동작 유지
+- Worker, D1, R2, DB schema, 직원 화면 코드는 변경하지 않음
