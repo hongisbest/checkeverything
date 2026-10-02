@@ -6,6 +6,9 @@ function bind(){
   $("loginBtn").onclick=login;$("password").onkeydown=e=>{if(e.key==="Enter")login()};
   $("logoutBtn").onclick=logout;$("uploadRefBtn").onclick=uploadReference;$("refreshRefBtn").onclick=loadReferences;
   $("refFile").onchange=previewReference;$("closeRoiBtn").onclick=closeRoi;$("saveRegionBtn").onclick=saveRegion;$("resetRegionBtn").onclick=resetDraft;$("searchBtn").onclick=loadInspections;
+  $("imageModalClose").onclick=closeImageModal;
+  document.querySelector("[data-close-modal]").onclick=closeImageModal;
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")closeImageModal()});
   document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>switchView(b.dataset.view));
   $("roiCanvas").addEventListener("pointerdown",startDraw);$("roiCanvas").addEventListener("pointermove",moveDraw);window.addEventListener("pointerup",endDraw);
 }
@@ -87,7 +90,7 @@ async function loadInspections(){
   try{
     const r=await fetchTimeout(`/api/admin/inspections?${q}`,{cache:"no-store"},15000),d=await r.json();if(!r.ok)throw new Error(d.error||"조회 실패");const a=d.items||[];
     $("countAll").textContent=a.length;$("countNormal").textContent=a.filter(x=>x.status==="정상").length;$("countReview").textContent=a.filter(x=>x.status==="확인필요").length;$("countAction").textContent=a.filter(x=>x.admin_state==="개선요청").length;
-    $("inspectionList").innerHTML=a.length?a.map(x=>{let f=[];try{f=JSON.parse(x.findings_json||"[]")}catch{}return`<div class="inspection-row"><div class="inspection-main"><img src="/api/admin/inspections/${x.id}/image"><div class="inspection-meta"><strong>${esc(x.vehicle_no)} · ${esc(x.employee_name)}</strong><span>${esc(x.department||"-")} / ${view(x.view_type)}</span><span>점수 ${Number(x.score).toFixed(1)} · <b>${esc(x.status)}</b></span><span>${esc(f.join(" / "))}</span><span class="muted">${esc(x.created_at)}</span></div></div><div class="detail-actions"><select id="state-${x.id}">${["미확인","확인완료","개선요청","조치완료"].map(v=>`<option ${x.admin_state===v?"selected":""}>${v}</option>`).join("")}</select><textarea id="note-${x.id}" placeholder="관리자 메모">${esc(x.admin_note||"")}</textarea><button class="btn small primary" onclick="saveInspection(${x.id})">저장</button></div></div>`}).join(""):'<div class="empty">점검결과가 없습니다.</div>';
+    $("inspectionList").innerHTML=a.length?a.map(x=>{let f=[];try{f=JSON.parse(x.findings_json||"[]")}catch{}return`<div class="inspection-row"><div class="inspection-main"><img class="inspection-thumb" src="/api/admin/inspections/${x.id}/image" alt="${esc(x.vehicle_no)} 점검사진" onclick="openImageModal('/api/admin/inspections/${x.id}/image','${jsEsc(x.vehicle_no)} · ${jsEsc(x.employee_name)}')"><div class="inspection-meta"><strong>${esc(x.vehicle_no)} · ${esc(x.employee_name)}</strong><span>${esc(x.department||"-")} / ${view(x.view_type)}</span><span>점수 ${Number(x.score).toFixed(1)} · <b>${esc(x.status)}</b></span><span>${esc(f.join(" / "))}</span><span class="muted">${esc(x.created_at)}</span></div></div><div class="detail-actions"><select id="state-${x.id}">${["미확인","확인완료","개선요청","조치완료"].map(v=>`<option ${x.admin_state===v?"selected":""}>${v}</option>`).join("")}</select><textarea id="note-${x.id}" placeholder="관리자 메모">${esc(x.admin_note||"")}</textarea><button class="btn small primary" onclick="saveInspection(${x.id})">저장</button></div></div>`}).join(""):'<div class="empty">점검결과가 없습니다.</div>';
   }catch(e){$("inspectionList").innerHTML=`<div class="message error">${esc(e.message)}</div>`}
 }
 window.saveInspection=async id=>{try{const r=await fetchTimeout(`/api/admin/inspections/${id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({admin_state:$(`state-${id}`).value,admin_note:$(`note-${id}`).value})},12000),d=await r.json();if(!r.ok)throw new Error(d.error||"저장 실패");loadInspections()}catch(e){alert(e.message)}}
@@ -99,7 +102,24 @@ async function compressImage(file,maxSide,quality){
 }
 function blobImage(blob){return new Promise((resolve,reject)=>{const u=URL.createObjectURL(blob),i=new Image();i.onload=()=>{URL.revokeObjectURL(u);resolve(i)};i.onerror=()=>{URL.revokeObjectURL(u);reject(new Error("이미지를 읽지 못했습니다."))};i.src=u})}
 function fetchTimeout(url,opts={},ms=20000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);return fetch(url,{...opts,signal:c.signal}).catch(e=>{if(e.name==="AbortError")throw new Error("서버 응답시간을 초과했습니다.");throw e}).finally(()=>clearTimeout(t))}
+
+window.openImageModal=(src,caption="")=>{
+  $("imageModalImg").src=src;
+  $("imageModalCaption").textContent=caption;
+  $("imageModal").classList.remove("hidden");
+  document.body.style.overflow="hidden";
+};
+function closeImageModal(){
+  const modal=$("imageModal");
+  if(!modal||modal.classList.contains("hidden"))return;
+  modal.classList.add("hidden");
+  $("imageModalImg").src="";
+  $("imageModalCaption").textContent="";
+  document.body.style.overflow="";
+}
+
 function setMsg(id,t,c){$(id).textContent=t;$(id).className=`message ${c}`}
 function view(v){return({driver_side:"운전석 측면",passenger_side:"조수석 측면",rear:"후면",front:"전면"})[v]||v}
 function clamp(v,a,b){return Math.min(b,Math.max(a,v))}
+function jsEsc(v){return String(v??"").replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/\n/g," ")}
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}

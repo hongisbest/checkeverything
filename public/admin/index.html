@@ -24,4 +24,13 @@
 <div class="dashboard-cards"><div class="dashboard-card"><span>전체</span><strong id="countAll">0</strong></div><div class="dashboard-card"><span>정상</span><strong id="countNormal">0</strong></div><div class="dashboard-card"><span>확인필요</span><strong id="countReview">0</strong></div><div class="dashboard-card"><span>개선요청</span><strong id="countAction">0</strong></div></div>
 <div class="filter-row"><input id="resultSearch" type="text" placeholder="성명 / 차량번호 / 부서"><select id="statusFilter"><option value="">자동판정 전체</option><option>정상</option><option>확인필요</option></select><select id="stateFilter"><option value="">관리상태 전체</option><option>미확인</option><option>확인완료</option><option>개선요청</option><option>조치완료</option></select><button id="searchBtn" class="btn">조회</button></div><div id="inspectionList" class="inspection-list"></div></section></section>
 </div></div></div>
-</main><script src="/js/admin.js"></script></body></html>
+</main>
+<div id="imageModal" class="image-modal hidden" role="dialog" aria-modal="true" aria-label="점검사진 확대보기">
+  <div class="image-modal-backdrop" data-close-modal></div>
+  <div class="image-modal-panel">
+    <button id="imageModalClose" class="image-modal-close" type="button" aria-label="닫기">×</button>
+    <img id="imageModalImg" alt="확대한 점검사진">
+    <div id="imageModalCaption" class="image-modal-caption"></div>
+  </div>
+</div>
+<script src="/js/admin.js"></script></body></html>
