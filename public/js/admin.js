@@ -5,6 +5,8 @@ document.addEventListener("DOMContentLoaded",()=>{bind();checkSession()});
 function bind(){
   $("loginBtn").onclick=login;$("password").onkeydown=e=>{if(e.key==="Enter")login()};
   $("logoutBtn").onclick=logout;$("uploadRefBtn").onclick=uploadReference;$("refreshRefBtn").onclick=loadReferences;
+  $("saveRulesBtn").onclick=saveRules;$("resetRulesBtn").onclick=()=>{fillRules(defaultRules());updateRuleSummary();};
+  ["damageNormalMax","damageReplaceMin","positionTolerance","colorDifferenceMax","shapeSimilarityMin","useDamage","usePosition","useColor","useShape"].forEach(id=>$(id).addEventListener("input",updateRuleSummary));
   $("refFile").onchange=previewReference;$("closeRoiBtn").onclick=closeRoi;$("saveRegionBtn").onclick=saveRegion;$("resetRegionBtn").onclick=resetDraft;$("searchBtn").onclick=loadInspections;
   $("imageModalClose").onclick=closeImageModal;
   document.querySelector("[data-close-modal]").onclick=closeImageModal;
@@ -26,8 +28,94 @@ async function login(){
 }
 async function logout(){try{await fetchTimeout("/api/admin/logout",{method:"POST"},10000)}catch{}showLogin()}
 function switchView(v){
-  $("referencesView").classList.toggle("hidden",v!=="references");$("resultsView").classList.toggle("hidden",v!=="results");
-  document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("primary",b.dataset.view===v));if(v==="results")loadInspections();
+  $("referencesView").classList.toggle("hidden",v!=="references");
+  $("rulesView").classList.toggle("hidden",v!=="rules");
+  $("resultsView").classList.toggle("hidden",v!=="results");
+  document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("primary",b.dataset.view===v));
+  if(v==="references")loadReferences();
+  if(v==="rules")loadRules();
+  if(v==="results")loadInspections();
+}
+
+
+function defaultRules(){
+  return{
+    damage_normal_max:10,
+    damage_replace_min:30,
+    position_tolerance:10,
+    color_difference_max:35,
+    shape_similarity_min:75,
+    use_damage:1,use_position:1,use_color:1,use_shape:1
+  };
+}
+
+function fillRules(r){
+  $("damageNormalMax").value=Number(r.damage_normal_max ?? 10);
+  $("damageReplaceMin").value=Number(r.damage_replace_min ?? 30);
+  $("positionTolerance").value=Number(r.position_tolerance ?? 10);
+  $("colorDifferenceMax").value=Number(r.color_difference_max ?? 35);
+  $("shapeSimilarityMin").value=Number(r.shape_similarity_min ?? 75);
+  $("useDamage").checked=Number(r.use_damage ?? 1)===1;
+  $("usePosition").checked=Number(r.use_position ?? 1)===1;
+  $("useColor").checked=Number(r.use_color ?? 1)===1;
+  $("useShape").checked=Number(r.use_shape ?? 1)===1;
+}
+
+function collectRules(){
+  return{
+    damage_normal_max:Number($("damageNormalMax").value),
+    damage_replace_min:Number($("damageReplaceMin").value),
+    position_tolerance:Number($("positionTolerance").value),
+    color_difference_max:Number($("colorDifferenceMax").value),
+    shape_similarity_min:Number($("shapeSimilarityMin").value),
+    use_damage:$("useDamage").checked,
+    use_position:$("usePosition").checked,
+    use_color:$("useColor").checked,
+    use_shape:$("useShape").checked
+  };
+}
+
+function updateRuleSummary(){
+  const r=collectRules();
+  const parts=[];
+  if(r.use_damage)parts.push(`손상률 ${r.damage_normal_max}% 이하 정상 / ${r.damage_normal_max}% 초과~${r.damage_replace_min}% 미만 확인필요 / ${r.damage_replace_min}% 이상 교체권고`);
+  if(r.use_position)parts.push(`위치오차 ${r.position_tolerance}% 초과 시 확인필요`);
+  if(r.use_color)parts.push(`색상차이 ${r.color_difference_max} 초과 시 변색·오염 확인필요`);
+  if(r.use_shape)parts.push(`형상 유사도 ${r.shape_similarity_min}% 미만 시 확인필요`);
+  $("ruleSummaryText").innerHTML=parts.length?parts.map(x=>`<div>• ${esc(x)}</div>`).join(""):"사용 중인 자동판정 항목이 없습니다.";
+}
+
+async function loadRules(){
+  setMsg("rulesMessage","판정기준을 불러오는 중입니다.","info");
+  try{
+    const r=await fetchTimeout("/api/admin/rules",{cache:"no-store"},12000),d=await r.json();
+    if(!r.ok)throw new Error(d.error||"판정기준 조회 실패");
+    fillRules(d.rules||defaultRules());
+    $("rulesUpdatedAt").textContent=d.rules?.updated_at ? `최근 저장 ${d.rules.updated_at}` : "기본값";
+    updateRuleSummary();
+    setMsg("rulesMessage","저장된 판정기준을 불러왔습니다.","success");
+  }catch(e){
+    fillRules(defaultRules());updateRuleSummary();setMsg("rulesMessage",e.message,"error");
+  }
+}
+
+async function saveRules(){
+  const rules=collectRules();
+  if(![rules.damage_normal_max,rules.damage_replace_min,rules.position_tolerance,rules.color_difference_max,rules.shape_similarity_min].every(Number.isFinite)){
+    setMsg("rulesMessage","모든 판정기준 숫자를 입력해 주세요.","error");return;
+  }
+  if(rules.damage_replace_min<=rules.damage_normal_max){
+    setMsg("rulesMessage","교체권고 손상률은 정상 허용 손상률보다 크게 설정해 주세요.","error");return;
+  }
+  $("saveRulesBtn").disabled=true;setMsg("rulesMessage","판정기준을 저장 중입니다...","info");
+  try{
+    const r=await fetchTimeout("/api/admin/rules",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(rules)},12000),d=await r.json();
+    if(!r.ok)throw new Error(d.error||"판정기준 저장 실패");
+    fillRules(d.rules);updateRuleSummary();
+    $("rulesUpdatedAt").textContent=d.rules?.updated_at ? `최근 저장 ${d.rules.updated_at}` : "저장완료";
+    setMsg("rulesMessage","저장 완료. 지금부터 신규 점검에 이 기준이 적용됩니다.","success");
+  }catch(e){setMsg("rulesMessage",e.message,"error")}
+  finally{$("saveRulesBtn").disabled=false}
 }
 
 async function previewReference(){

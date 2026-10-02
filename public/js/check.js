@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const S={refs:[],ref:null,stream:null,blob:null,analysis:null};
+const S={refs:[],ref:null,stream:null,blob:null,analysis:null,rules:null};
 document.addEventListener("DOMContentLoaded",()=>{bind();restore();loadConfig()});
 
 function bind(){
@@ -15,6 +15,7 @@ async function loadConfig(){
     const r=await fetchTimeout("/api/config",{},15000),d=await r.json();
     if(!r.ok)throw new Error(d.error||"기준사진 조회 실패");
     S.refs=d.references||[];
+    S.rules=d.rules||defaultRules();
     $("configStatus").textContent=S.refs.length?`${S.refs.length}개 방향`:"기준사진 없음";
     $("refTabs").innerHTML=S.refs.map(x=>`<button class="ref-tab" data-id="${x.id}">${view(x.view_type)}</button>`).join("");
     document.querySelectorAll(".ref-tab").forEach(b=>b.onclick=()=>selectRef(Number(b.dataset.id)));
@@ -74,18 +75,71 @@ async function analyze(){
   const noRegions=S.ref.regions.length===0;
   const regions=noRegions?[{label:"관리자 검증영역 미설정",x:.12,y:.16,width:.76,height:.68}]:S.ref.regions;
   const results=regions.map(g=>compareRegion(reference,current,g));
-  const avg=mean(results.map(x=>x.score)),min=Math.min(...results.map(x=>x.score));
-  let score=clamp(avg*.75+min*.25,0,100),findings=[];
-  results.forEach(x=>{
-    if(x.score>=82)return;
-    if(x.shift>=5)findings.push(`${x.label}: 위치 어긋남 의심`);
-    if(x.edge<.58)findings.push(`${x.label}: 스티커 탈락 또는 큰 훼손 의심`);
-    else if(x.color>38)findings.push(`${x.label}: 변색·오염 의심`);
-    else findings.push(`${x.label}: 형상 변화 확인 필요`);
-  });
-  if(noRegions){findings.unshift("관리자 검증영역이 설정되지 않아 전체영역으로 임시 비교했습니다.");score=Math.min(score,79)}
-  if(!findings.length)findings.push("뚜렷한 이상징후가 없습니다.");
-  return{score:r1(score),status:(score>=80&&min>=72&&!noRegions)?"정상":"확인필요",findings:[...new Set(findings)],metrics:{shape:r1(mean(results.map(x=>x.shape))),color:r1(mean(results.map(x=>x.color))),shift:Math.max(...results.map(x=>x.shift)),regions:results}};
+  const rules=S.rules||defaultRules();
+
+  const avgBase=mean(results.map(x=>x.baseScore));
+  const minBase=Math.min(...results.map(x=>x.baseScore));
+  let score=clamp(avgBase*.75+minBase*.25,0,100);
+  const findings=[];
+  let needsReview=false;
+  let replaceRecommended=false;
+
+  for(const x of results){
+    if(Number(rules.use_damage)===1){
+      if(x.damage>=Number(rules.damage_replace_min)){
+        findings.push(`${x.label}: 추정 손상/누락률 ${x.damage}% → 교체 권고`);
+        needsReview=true;replaceRecommended=true;
+      }else if(x.damage>Number(rules.damage_normal_max)){
+        findings.push(`${x.label}: 추정 손상/누락률 ${x.damage}% → 확인필요`);
+        needsReview=true;
+      }
+    }
+
+    if(Number(rules.use_position)===1 && x.shiftPct>Number(rules.position_tolerance)){
+      findings.push(`${x.label}: 위치오차 ${x.shiftPct}% → 확인필요`);
+      needsReview=true;
+    }
+
+    if(Number(rules.use_color)===1 && x.color>Number(rules.color_difference_max)){
+      findings.push(`${x.label}: 색상차이 ${x.color} → 변색·오염 확인필요`);
+      needsReview=true;
+    }
+
+    if(Number(rules.use_shape)===1 && x.shape<Number(rules.shape_similarity_min)){
+      findings.push(`${x.label}: 형상 유사도 ${x.shape}% → 형상 변화 확인필요`);
+      needsReview=true;
+    }
+  }
+
+  if(noRegions){
+    findings.unshift("관리자 검증영역이 설정되지 않아 전체영역으로 임시 비교했습니다.");
+    needsReview=true;score=Math.min(score,79);
+  }
+
+  if(!findings.length) findings.push("설정된 판정기준에서 뚜렷한 이상징후가 없습니다.");
+
+  return{
+    score:r1(score),
+    status:needsReview?"확인필요":"정상",
+    recommendation:replaceRecommended?"교체 권고":"",
+    findings:[...new Set(findings)],
+    metrics:{
+      damage:r1(Math.max(...results.map(x=>x.damage))),
+      shape:r1(mean(results.map(x=>x.shape))),
+      color:r1(mean(results.map(x=>x.color))),
+      shiftPct:r1(Math.max(...results.map(x=>x.shiftPct))),
+      regions:results,
+      rules
+    }
+  };
+}
+
+function defaultRules(){
+  return{
+    damage_normal_max:10,damage_replace_min:30,position_tolerance:10,
+    color_difference_max:35,shape_similarity_min:75,
+    use_damage:1,use_position:1,use_color:1,use_shape:1
+  };
 }
 
 function compareRegion(a,b,g){
@@ -93,8 +147,12 @@ function compareRegion(a,b,g){
   for(let dy=-6;dy<=6;dy+=3)for(let dx=-6;dx<=6;dx+=3){
     const B=crop(b,g,size,dx/size,dy/size),m=metrics(A,B);if(m.mad<best.mad)best={...m,dx,dy};
   }
-  const shape=clamp(100-best.mad*1.2,0,100),shift=Math.round(Math.hypot(best.dx,best.dy));
-  return{label:g.label,shape:r1(shape),color:r1(best.color),edge:r2(best.edge),shift,score:r1(clamp(shape-best.color*.5-Math.abs(1-best.edge)*32-shift*1.5,0,100))};
+  const shape=clamp(100-best.mad*1.2,0,100);
+  const shift=Math.round(Math.hypot(best.dx,best.dy));
+  const shiftPct=r1(shift/size*100);
+  const damage=r1(clamp(100-shape,0,100));
+  const baseScore=r1(clamp(shape-best.color*.5-Math.abs(1-best.edge)*32-shift*1.5,0,100));
+  return{label:g.label,shape:r1(shape),damage,color:r1(best.color),edge:r2(best.edge),shift,shiftPct,baseScore};
 }
 function crop(img,g,size,dx,dy){
   const c=document.createElement("canvas");c.width=c.height=size;
@@ -116,8 +174,13 @@ function metrics(a,b){
   return{mad:mad/n,color:color/n,edge:ea>5?eb/ea:1};
 }
 function renderAnalysis(a){
-  $("resultStatus").textContent=a.status;$("resultStatus").className=`badge ${a.status==="정상"?"pill normal":"pill review"}`;
-  $("scoreValue").textContent=a.score;$("shapeValue").textContent=a.metrics.shape;$("colorValue").textContent=a.metrics.color;$("shiftValue").textContent=`${a.metrics.shift}px`;
+  $("resultStatus").textContent=a.recommendation?`${a.status} · ${a.recommendation}`:a.status;
+  $("resultStatus").className=`badge ${a.status==="정상"?"pill normal":"pill review"}`;
+  $("scoreValue").textContent=a.score;
+  $("damageValue").textContent=`${a.metrics.damage}%`;
+  $("shapeValue").textContent=`${a.metrics.shape}%`;
+  $("colorValue").textContent=a.metrics.color;
+  $("shiftValue").textContent=`${a.metrics.shiftPct}%`;
   $("findings").innerHTML=a.findings.map(x=>`<div class="finding ${a.status==="정상"?"ok":""}">${esc(x)}</div>`).join("");
 }
 

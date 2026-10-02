@@ -41,3 +41,24 @@ CREATE TABLE IF NOT EXISTS vc2_inspections (
 CREATE INDEX IF NOT EXISTS idx_vc2_refs_active ON vc2_references(view_type, is_active);
 CREATE INDEX IF NOT EXISTS idx_vc2_regions_ref ON vc2_regions(reference_id);
 CREATE INDEX IF NOT EXISTS idx_vc2_insp_status ON vc2_inspections(status, admin_state);
+
+CREATE TABLE IF NOT EXISTS vc2_rules (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  damage_normal_max REAL NOT NULL DEFAULT 10,
+  damage_replace_min REAL NOT NULL DEFAULT 30,
+  position_tolerance REAL NOT NULL DEFAULT 10,
+  color_difference_max REAL NOT NULL DEFAULT 35,
+  shape_similarity_min REAL NOT NULL DEFAULT 75,
+  use_damage INTEGER NOT NULL DEFAULT 1,
+  use_position INTEGER NOT NULL DEFAULT 1,
+  use_color INTEGER NOT NULL DEFAULT 1,
+  use_shape INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT OR IGNORE INTO vc2_rules (
+  id, damage_normal_max, damage_replace_min, position_tolerance,
+  color_difference_max, shape_similarity_min,
+  use_damage, use_position, use_color, use_shape
+) VALUES (1, 10, 30, 10, 35, 75, 1, 1, 1, 1);
+

@@ -59,7 +59,25 @@ function ensureSchema(env) {
       )`),
       env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_vc2_refs_active ON vc2_references(view_type, is_active)"),
       env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_vc2_regions_ref ON vc2_regions(reference_id)"),
-      env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_vc2_insp_status ON vc2_inspections(status, admin_state)")
+      env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_vc2_insp_status ON vc2_inspections(status, admin_state)"),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS vc2_rules (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        damage_normal_max REAL NOT NULL DEFAULT 10,
+        damage_replace_min REAL NOT NULL DEFAULT 30,
+        position_tolerance REAL NOT NULL DEFAULT 10,
+        color_difference_max REAL NOT NULL DEFAULT 35,
+        shape_similarity_min REAL NOT NULL DEFAULT 75,
+        use_damage INTEGER NOT NULL DEFAULT 1,
+        use_position INTEGER NOT NULL DEFAULT 1,
+        use_color INTEGER NOT NULL DEFAULT 1,
+        use_shape INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`),
+      env.DB.prepare(`INSERT OR IGNORE INTO vc2_rules (
+        id, damage_normal_max, damage_replace_min, position_tolerance,
+        color_difference_max, shape_similarity_min,
+        use_damage, use_position, use_color, use_shape
+      ) VALUES (1,10,30,10,35,75,1,1,1,1)`)
     ]).catch(e => { schemaPromise = null; throw e; });
   }
   return schemaPromise;
@@ -84,6 +102,8 @@ async function handleApi(request, env, url) {
   if (p === "/api/admin/me" && request.method === "GET") return json({ok:true});
   if (p === "/api/admin/references" && request.method === "GET") return listReferences(env);
   if (p === "/api/admin/references" && request.method === "POST") return uploadReference(request, env);
+  if (p === "/api/admin/rules" && request.method === "GET") return getRules(env);
+  if (p === "/api/admin/rules" && request.method === "POST") return saveRules(request, env);
   if (p === "/api/admin/inspections" && request.method === "GET") return listInspections(env, url);
   if (p === "/api/admin/export.csv" && request.method === "GET") return exportCsv(env);
 
@@ -178,7 +198,81 @@ async function getConfig(env) {
     `).bind(r.id).all();
     refs.push({...r, image_url:`/api/reference/${r.id}/image`, regions:regs.results || []});
   }
-  return json({ok:true,references:refs});
+  const rules = await readRules(env);
+  return json({ok:true,references:refs,rules});
+}
+
+async function readRules(env) {
+  const row = await env.DB.prepare(`
+    SELECT damage_normal_max,damage_replace_min,position_tolerance,
+           color_difference_max,shape_similarity_min,
+           use_damage,use_position,use_color,use_shape,updated_at
+    FROM vc2_rules WHERE id=1
+  `).first();
+
+  return row || {
+    damage_normal_max:10,
+    damage_replace_min:30,
+    position_tolerance:10,
+    color_difference_max:35,
+    shape_similarity_min:75,
+    use_damage:1,use_position:1,use_color:1,use_shape:1
+  };
+}
+
+async function getRules(env) {
+  return json({ok:true,rules:await readRules(env)});
+}
+
+async function saveRules(request, env) {
+  const body = await request.json().catch(()=>({}));
+
+  const damageNormal = Number(body.damage_normal_max);
+  const damageReplace = Number(body.damage_replace_min);
+  const positionTolerance = Number(body.position_tolerance);
+  const colorMax = Number(body.color_difference_max);
+  const shapeMin = Number(body.shape_similarity_min);
+
+  if (![damageNormal,damageReplace,positionTolerance,colorMax,shapeMin].every(Number.isFinite)) {
+    return json({ok:false,error:"판정기준 값이 올바르지 않습니다."},400);
+  }
+  if (damageNormal < 0 || damageNormal > 100 ||
+      damageReplace < 0 || damageReplace > 100 ||
+      positionTolerance < 0 || positionTolerance > 100 ||
+      colorMax < 0 || colorMax > 255 ||
+      shapeMin < 0 || shapeMin > 100) {
+    return json({ok:false,error:"판정기준 값의 허용범위를 확인해 주세요."},400);
+  }
+  if (damageReplace <= damageNormal) {
+    return json({ok:false,error:"교체권고 손상률은 정상 허용 손상률보다 커야 합니다."},400);
+  }
+
+  await env.DB.prepare(`
+    INSERT INTO vc2_rules (
+      id,damage_normal_max,damage_replace_min,position_tolerance,
+      color_difference_max,shape_similarity_min,
+      use_damage,use_position,use_color,use_shape,updated_at
+    ) VALUES (1,?,?,?,?,?,?,?,?,?,datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET
+      damage_normal_max=excluded.damage_normal_max,
+      damage_replace_min=excluded.damage_replace_min,
+      position_tolerance=excluded.position_tolerance,
+      color_difference_max=excluded.color_difference_max,
+      shape_similarity_min=excluded.shape_similarity_min,
+      use_damage=excluded.use_damage,
+      use_position=excluded.use_position,
+      use_color=excluded.use_color,
+      use_shape=excluded.use_shape,
+      updated_at=datetime('now')
+  `).bind(
+    damageNormal,damageReplace,positionTolerance,colorMax,shapeMin,
+    body.use_damage ? 1 : 0,
+    body.use_position ? 1 : 0,
+    body.use_color ? 1 : 0,
+    body.use_shape ? 1 : 0
+  ).run();
+
+  return json({ok:true,rules:await readRules(env)});
 }
 
 async function uploadReference(request, env) {

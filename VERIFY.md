@@ -40,3 +40,21 @@
 - 이미지 최대 크기 92vw × 82dvh로 제한
 - 우측 상단 X / 배경 클릭 / ESC 닫기 동작 유지
 - Worker, D1, R2, DB schema, 직원 화면 코드는 변경하지 않음
+
+
+## V4 관리자 판정기준 기능 검증
+1. 데이터 보존
+- 기존 `vc2_references`, `vc2_regions`, `vc2_inspections` 변경/삭제 없음
+- 신규 `vc2_rules` 단일 행 테이블만 추가
+- DROP/TRUNCATE 없음
+- 기존 R2 저장경로 및 사진 삭제 로직 변경 없음
+
+2. 기능 연결
+- `/api/admin/rules` GET/POST 추가
+- `/api/config`에 rules 전달
+- 관리자 메뉴/입력필드/저장 이벤트 연결
+- 사용자 분석이 저장된 rules를 사용하도록 변경
+
+3. 배포/환경 보존
+- Worker 이름 / D1 ID / R2 bucket / Assets 설정 변경 없음
+- 이전 V3 중앙 사진 확대 모달 유지
