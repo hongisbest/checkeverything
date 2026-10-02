@@ -1,0 +1,27 @@
+[GitHub에 싹 다시 올리는 방법]
+
+1) 이 ZIP 압축을 풉니다.
+2) GitHub 저장소의 기존 '코드 파일'을 교체합니다.
+   - package.json
+   - wrangler.jsonc
+   - src/
+   - public/
+   - README.md
+   - schema.sql
+   주의: Cloudflare의 D1/R2 자원 자체는 삭제하지 마세요.
+3) 저장소 최상단에 package.json / wrangler.jsonc / src / public 이 바로 보여야 합니다.
+4) Commit 합니다.
+5) Cloudflare 자동 배포가 완료되면 강력 새로고침(Ctrl+F5).
+6) 관리자: https://현재주소/admin/
+7) 직원: https://현재주소/check/
+
+[Cloudflare에서 기존 설정 유지]
+- Worker name: checkeverything
+- D1: vehicle-sticker-db
+- D1 ID: 0c00c58c-8c79-496f-ab53-f29f82a2afee
+- R2: vehicle-sticker-reference
+- Secret: ADMIN_PASSWORD
+- Secret: ADMIN_SESSION_SECRET
+
+DB 테이블은 첫 API 호출 때 자동으로 CREATE IF NOT EXISTS 처리되므로
+이번 버전에서는 D1 Console에서 schema.sql을 별도로 실행하지 않아도 됩니다.
