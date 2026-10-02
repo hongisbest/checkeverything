@@ -105,6 +105,61 @@
 <div class="filter-row"><input id="resultSearch" type="text" placeholder="성명 / 차량번호 / 부서"><select id="statusFilter"><option value="">자동판정 전체</option><option>정상</option><option>확인필요</option></select><select id="stateFilter"><option value="">관리상태 전체</option><option>미확인</option><option>확인완료</option><option>개선요청</option><option>조치완료</option></select><button id="searchBtn" class="btn">조회</button></div><div id="inspectionList" class="inspection-list"></div></section></section>
 </div></div></div>
 </main>
+
+<div id="referenceEditModal" class="reference-edit-modal hidden" role="dialog" aria-modal="true" aria-label="기준사진 수정">
+  <div class="reference-edit-backdrop" data-close-reference-edit></div>
+  <div class="reference-edit-panel">
+    <button id="closeReferenceEditBtn" class="reference-edit-close" type="button" aria-label="닫기">×</button>
+    <div>
+      <span class="step">EDIT REFERENCE</span>
+      <h2>기준사진 수정</h2>
+      <p class="help">사진을 바꾸지 않으려면 새 사진을 선택하지 않은 채 저장하세요.</p>
+    </div>
+
+    <input id="editReferenceId" type="hidden">
+
+    <div class="grid-2" style="margin-top:14px">
+      <div class="form-group">
+        <label>기준사진명</label>
+        <input id="editRefTitle" type="text">
+      </div>
+      <div class="form-group">
+        <label>촬영방향</label>
+        <select id="editViewType">
+          <option value="driver_side">운전석 측면</option>
+          <option value="passenger_side">조수석 측면</option>
+          <option value="rear">후면</option>
+          <option value="front">전면</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:12px">
+      <label>촬영 가이드</label>
+      <textarea id="editGuideText"></textarea>
+    </div>
+
+    <div class="edit-reference-image-row">
+      <div>
+        <span class="step">CURRENT</span>
+        <div id="editCurrentPreview" class="edit-reference-preview"></div>
+      </div>
+      <div class="form-group">
+        <label>새 기준사진 (선택사항)</label>
+        <input id="editRefFile" type="file" accept="image/*">
+        <p class="help">새 사진 선택 시에만 사진이 교체됩니다. 기존 점검결과가 연결된 사진은 자동으로 새 버전을 만들어 보존합니다.</p>
+        <div id="editNewPreview" class="edit-reference-preview hidden"></div>
+      </div>
+    </div>
+
+    <div class="reference-edit-actions">
+      <button id="cancelReferenceEditBtn" class="btn" type="button">취소</button>
+      <button id="saveReferenceEditBtn" class="btn primary" type="button">수정내용 저장</button>
+    </div>
+    <div id="editReferenceMessage" class="message info">기존 검증영역은 그대로 유지됩니다.</div>
+  </div>
+</div>
+
 <div id="imageModal" class="image-modal hidden" role="dialog" aria-modal="true" aria-label="점검사진 확대보기">
   <div class="image-modal-backdrop" data-close-modal></div>
   <div class="image-modal-panel">

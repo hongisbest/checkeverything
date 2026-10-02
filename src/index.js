@@ -110,6 +110,9 @@ async function handleApi(request, env, url) {
   const activate = p.match(/^\/api\/admin\/references\/(\d+)\/activate$/);
   if (activate && request.method === "POST") return activateReference(env, Number(activate[1]));
 
+  const referenceEdit = p.match(/^\/api\/admin\/references\/(\d+)$/);
+  if (referenceEdit && request.method === "PATCH") return updateReference(request, env, Number(referenceEdit[1]));
+
   const referenceDelete = p.match(/^\/api\/admin\/references\/(\d+)$/);
   if (referenceDelete && request.method === "DELETE") return deleteReference(env, Number(referenceDelete[1]));
 
@@ -301,6 +304,124 @@ async function uploadReference(request, env) {
     return json({ok:true,id:inserted?.id});
   } catch (e) {
     await env.STORAGE.delete(key);
+    throw e;
+  }
+}
+
+
+async function updateReference(request, env, id) {
+  const current = await env.DB.prepare(`
+    SELECT id,title,view_type,guide_text,object_key,content_type,is_active
+    FROM vc2_references WHERE id=?
+  `).bind(id).first();
+
+  if (!current) return json({ok:false,error:"기준사진을 찾을 수 없습니다."},404);
+
+  const form = await request.formData();
+  const title = text(form.get("title"),100);
+  const viewType = text(form.get("view_type"),40);
+  const guideText = text(form.get("guide_text"),1000);
+  const file = form.get("file");
+
+  if (!title) return json({ok:false,error:"기준사진명을 입력해 주세요."},400);
+  if (!["driver_side","passenger_side","rear","front"].includes(viewType)) {
+    return json({ok:false,error:"촬영방향이 올바르지 않습니다."},400);
+  }
+
+  const hasNewFile = file && typeof file !== "string" && Number(file.size||0) > 0;
+  if (hasNewFile) {
+    if (!file.type.startsWith("image/")) return json({ok:false,error:"이미지 파일만 등록할 수 있습니다."},400);
+    if (file.size > 8*1024*1024) return json({ok:false,error:"이미지는 8MB 이하로 등록해 주세요."},400);
+  }
+
+  const used = await env.DB.prepare(
+    "SELECT COUNT(*) AS c FROM vc2_inspections WHERE reference_id=?"
+  ).bind(id).first();
+  const usageCount = Number(used?.c || 0);
+
+  // 사진 교체 + 과거 점검이 연결된 경우:
+  // 기존 기준사진을 수정하지 않고 신규 버전을 생성해 과거 판정 근거를 보존한다.
+  if (hasNewFile && usageCount > 0) {
+    const newKey = `app-v2/reference/${Date.now()}-${crypto.randomUUID()}.${extension(file.type)}`;
+    await env.STORAGE.put(newKey,file.stream(),{
+      httpMetadata:{contentType:file.type,cacheControl:"private,max-age=0"}
+    });
+
+    try {
+      if (Number(current.is_active) === 1) {
+        await env.DB.prepare("UPDATE vc2_references SET is_active=0 WHERE view_type=?")
+          .bind(viewType).run();
+      }
+
+      const inserted = await env.DB.prepare(`
+        INSERT INTO vc2_references(
+          title,view_type,guide_text,object_key,content_type,is_active
+        ) VALUES(?,?,?,?,?,?) RETURNING id
+      `).bind(
+        title,viewType,guideText,newKey,file.type,Number(current.is_active)===1?1:0
+      ).first();
+
+      // 비율 좌표이므로 기존 검증영역을 신규 버전에 복사한다.
+      await env.DB.prepare(`
+        INSERT INTO vc2_regions(reference_id,label,x,y,width,height)
+        SELECT ?,label,x,y,width,height
+        FROM vc2_regions WHERE reference_id=?
+      `).bind(inserted.id,id).run();
+
+      return json({
+        ok:true,
+        id:inserted.id,
+        versioned:true,
+        message:"기존 점검이 연결되어 있어 과거 기준사진은 보존하고 새 버전으로 등록했습니다."
+      });
+    } catch (e) {
+      await env.STORAGE.delete(newKey);
+      throw e;
+    }
+  }
+
+  // 사진이 없는 메타데이터 수정 또는 미사용 기준사진의 사진 교체
+  let newKey = current.object_key;
+  let newType = current.content_type;
+  let oldKeyToDelete = null;
+
+  if (hasNewFile) {
+    newKey = `app-v2/reference/${Date.now()}-${crypto.randomUUID()}.${extension(file.type)}`;
+    newType = file.type;
+    await env.STORAGE.put(newKey,file.stream(),{
+      httpMetadata:{contentType:file.type,cacheControl:"private,max-age=0"}
+    });
+    oldKeyToDelete = current.object_key;
+  }
+
+  try {
+    // 활성 사진의 촬영방향이 바뀌는 경우 새 방향의 다른 활성값을 해제한다.
+    if (Number(current.is_active) === 1 && viewType !== current.view_type) {
+      await env.DB.prepare(
+        "UPDATE vc2_references SET is_active=0 WHERE view_type=? AND id<>?"
+      ).bind(viewType,id).run();
+    }
+
+    await env.DB.prepare(`
+      UPDATE vc2_references
+      SET title=?,view_type=?,guide_text=?,object_key=?,content_type=?
+      WHERE id=?
+    `).bind(title,viewType,guideText,newKey,newType,id).run();
+
+    if (oldKeyToDelete && oldKeyToDelete !== newKey) {
+      await env.STORAGE.delete(oldKeyToDelete);
+    }
+
+    return json({
+      ok:true,
+      id,
+      versioned:false,
+      message:hasNewFile ? "기준사진과 설정을 수정했습니다." : "기준사진 설정을 수정했습니다."
+    });
+  } catch (e) {
+    if (hasNewFile && newKey !== current.object_key) {
+      await env.STORAGE.delete(newKey);
+    }
     throw e;
   }
 }

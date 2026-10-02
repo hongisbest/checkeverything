@@ -6,11 +6,16 @@ function bind(){
   $("loginBtn").onclick=login;$("password").onkeydown=e=>{if(e.key==="Enter")login()};
   $("logoutBtn").onclick=logout;$("uploadRefBtn").onclick=uploadReference;$("refreshRefBtn").onclick=loadReferences;
   $("saveRulesBtn").onclick=saveRules;$("resetRulesBtn").onclick=()=>{fillRules(defaultRules());updateRuleSummary();};
+  $("closeReferenceEditBtn").onclick=closeReferenceEdit;
+  $("cancelReferenceEditBtn").onclick=closeReferenceEdit;
+  $("saveReferenceEditBtn").onclick=saveReferenceEdit;
+  document.querySelector("[data-close-reference-edit]").onclick=closeReferenceEdit;
+  $("editRefFile").onchange=previewEditedReference;
   ["damageNormalMax","damageReplaceMin","positionTolerance","colorDifferenceMax","shapeSimilarityMin","useDamage","usePosition","useColor","useShape"].forEach(id=>$(id).addEventListener("input",updateRuleSummary));
   $("refFile").onchange=previewReference;$("closeRoiBtn").onclick=closeRoi;$("saveRegionBtn").onclick=saveRegion;$("resetRegionBtn").onclick=resetDraft;$("searchBtn").onclick=loadInspections;
   $("imageModalClose").onclick=closeImageModal;
   document.querySelector("[data-close-modal]").onclick=closeImageModal;
-  document.addEventListener("keydown",e=>{if(e.key==="Escape")closeImageModal()});
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeImageModal();if(!$("referenceEditModal").classList.contains("hidden"))closeReferenceEdit()}});
   document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>switchView(b.dataset.view));
   $("roiCanvas").addEventListener("pointerdown",startDraw);$("roiCanvas").addEventListener("pointermove",moveDraw);window.addEventListener("pointerup",endDraw);
 }
@@ -142,9 +147,95 @@ async function loadReferences(){
     const r=await fetchTimeout("/api/admin/references",{cache:"no-store"},15000),d=await r.json();
     if(r.status===401)return showLogin();if(!r.ok)throw new Error(d.error||"목록 조회 실패");
     S.refs=d.items||[];
-    $("referenceList").innerHTML=S.refs.length?S.refs.map(x=>`<div class="reference-row"><img src="/api/reference/${x.id}/image?v=${Date.now()}"><div><strong>${esc(x.title)}</strong><div class="muted" style="font-size:12px;margin-top:4px">${view(x.view_type)} · 검증영역 ${Number(x.region_count||0)}개</div><div style="margin-top:5px">${Number(x.is_active)===1?'<span class="pill active">활성</span>':""}</div></div><div class="row-actions"><button class="btn small" onclick="openRoi(${x.id})">검증영역</button><button class="btn small" onclick="activateReference(${x.id})" ${Number(x.is_active)===1?"disabled":""}>활성화</button><button class="btn small danger" onclick="deleteReference(${x.id})">삭제</button></div></div>`).join(""):'<div class="empty">등록된 기준사진이 없습니다.</div>';
+    $("referenceList").innerHTML=S.refs.length?S.refs.map(x=>`<div class="reference-row"><img src="/api/reference/${x.id}/image?v=${Date.now()}"><div><strong>${esc(x.title)}</strong><div class="muted" style="font-size:12px;margin-top:4px">${view(x.view_type)} · 검증영역 ${Number(x.region_count||0)}개</div><div style="margin-top:5px">${Number(x.is_active)===1?'<span class="pill active">활성</span>':""}</div></div><div class="row-actions"><button class="btn small secondary" onclick="openReferenceEdit(${x.id})">수정</button><button class="btn small" onclick="openRoi(${x.id})">검증영역</button><button class="btn small" onclick="activateReference(${x.id})" ${Number(x.is_active)===1?"disabled":""}>활성화</button><button class="btn small danger" onclick="deleteReference(${x.id})">삭제</button></div></div>`).join(""):'<div class="empty">등록된 기준사진이 없습니다.</div>';
   }catch(e){$("referenceList").innerHTML=`<div class="message error">${esc(e.message)}</div>`}
 }
+
+window.openReferenceEdit=function(id){
+  const item=S.refs.find(x=>Number(x.id)===Number(id));
+  if(!item)return;
+
+  $("editReferenceId").value=item.id;
+  $("editRefTitle").value=item.title||"";
+  $("editViewType").value=item.view_type||"driver_side";
+  $("editGuideText").value=item.guide_text||"";
+  $("editRefFile").value="";
+  $("editCurrentPreview").innerHTML=`<img src="/api/reference/${item.id}/image?v=${Date.now()}" alt="현재 기준사진">`;
+  $("editNewPreview").innerHTML="";
+  $("editNewPreview").classList.add("hidden");
+  setMsg("editReferenceMessage","사진을 선택하지 않으면 명칭·촬영방향·가이드만 수정됩니다.","info");
+  $("referenceEditModal").classList.remove("hidden");
+  document.body.classList.add("modal-open");
+};
+
+function closeReferenceEdit(){
+  $("referenceEditModal").classList.add("hidden");
+  $("editRefFile").value="";
+  $("editNewPreview").innerHTML="";
+  $("editNewPreview").classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
+
+async function previewEditedReference(){
+  const file=$("editRefFile").files[0];
+  if(!file){
+    $("editNewPreview").innerHTML="";
+    $("editNewPreview").classList.add("hidden");
+    return;
+  }
+  try{
+    const optimized=await compressImage(file,1600,.88);
+    const url=URL.createObjectURL(optimized);
+    $("editNewPreview").innerHTML=`<img src="${url}" alt="새 기준사진 미리보기">`;
+    $("editNewPreview").classList.remove("hidden");
+  }catch(e){
+    setMsg("editReferenceMessage","새 사진을 읽지 못했습니다.","error");
+  }
+}
+
+async function saveReferenceEdit(){
+  const id=Number($("editReferenceId").value);
+  const title=$("editRefTitle").value.trim();
+  if(!id||!title){
+    setMsg("editReferenceMessage","기준사진명을 입력해 주세요.","error");
+    return;
+  }
+
+  $("saveReferenceEditBtn").disabled=true;
+  setMsg("editReferenceMessage","수정내용을 저장 중입니다...","info");
+
+  try{
+    const fd=new FormData();
+    fd.append("title",title);
+    fd.append("view_type",$("editViewType").value);
+    fd.append("guide_text",$("editGuideText").value.trim());
+
+    const file=$("editRefFile").files[0];
+    if(file){
+      const optimized=await compressImage(file,1600,.88);
+      fd.append("file",optimized,"reference-edit.jpg");
+    }
+
+    const r=await fetchTimeout(`/api/admin/references/${id}`,{
+      method:"PATCH",
+      body:fd
+    },30000);
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||"수정 실패");
+
+    setMsg("editReferenceMessage",d.message||"수정 완료","success");
+    await loadReferences();
+
+    setTimeout(()=>{
+      closeReferenceEdit();
+    },700);
+  }catch(e){
+    setMsg("editReferenceMessage",`${e.message} 다시 시도해 주세요.`,"error");
+  }finally{
+    $("saveReferenceEditBtn").disabled=false;
+  }
+}
+
 window.activateReference=async id=>{try{const r=await fetchTimeout(`/api/admin/references/${id}/activate`,{method:"POST"},12000),d=await r.json();if(!r.ok)throw new Error(d.error||"활성화 실패");loadReferences()}catch(e){alert(e.message)}}
 window.deleteReference=async id=>{if(!confirm("이 기준사진을 삭제할까요? 기존 점검결과와 연결되어 있으면 삭제되지 않습니다."))return;try{const r=await fetchTimeout(`/api/admin/references/${id}`,{method:"DELETE"},15000),d=await r.json();if(!r.ok)throw new Error(d.error||"삭제 실패");loadReferences()}catch(e){alert(e.message)}}
 
